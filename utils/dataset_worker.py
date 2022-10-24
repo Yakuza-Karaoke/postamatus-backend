@@ -3,7 +3,7 @@ from openpyxl.cell import Cell
 from openpyxl import load_workbook
 from pydantic import BaseModel
 
-wb: Workbook = load_workbook(filename='./dataset.xlsx')
+wb: Workbook = load_workbook(filename='utils/dataset.xlsx')
 ws = wb['Реестр домов']
 
 headers = ('№ - ТОП', '№', 'Адрес', 'Площадь м2', 'Год', 'Этажей', 'Подьездов', 'Помещений / Квартир')
@@ -15,16 +15,13 @@ class DatasetRow(BaseModel):
     city: str | None
     size: float | None
     population: int | None
-    # year: int | None
-    # floors: int | None
-    # entrances: int | None
-    # rooms: int | None
 
-def get_data() -> list[DatasetRow]:
+
+def get_data(items: int = 20, page: int = 1) -> list[DatasetRow]:
     data: list[DatasetRow] = []
 
     row: Cell
-    for row in sh.iter_rows():
+    for row in sh.iter_rows(min_row=(page - 1) * items or 2, max_row=page * items + 2):
         try:
             address = ''.join((row[2].value).split(',')[:-1])
         except Exception:
