@@ -3,8 +3,18 @@ from fastapi import FastAPI, HTTPException, Header
 
 from utils.dataset_worker import DatasetRow, get_data
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS", "PATCH", "DELETE", "PUT"],
+    allow_headers=["*"],
+)
 
 
 @app.get('/addresses', response_model=list[DatasetRow])
