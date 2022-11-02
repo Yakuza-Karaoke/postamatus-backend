@@ -62,8 +62,8 @@ async def get_my_data(token: str = Header()):
     """Получение данных о пользователе по токену"""
     username, password = token.split('_')
     if user := await Mongo.find_user(username=username, password=password):
-        del user['password']
-        return UserOut(**user)
+        del user[0]['password']
+        return UserOut(**user[0])
     raise HTTPException(status_code=403, detail='Ошибка при валидации токена')
 
 
