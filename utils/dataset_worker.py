@@ -17,11 +17,12 @@ class DatasetRow(BaseModel):
     population: int | None
 
 
-def get_data(items: int = 20, page: int = 1) -> list[DatasetRow]:
+def get_data(items: int = 5, page: int = 1) -> list[DatasetRow]:
     data: list[DatasetRow] = []
 
     row: Cell
-    for row in sh.iter_rows(min_row=(page - 1) * items or 2, max_row=page * items + 2):
+    for row in sh.iter_rows():
+        # min_row=(page - 1) * items or 2, max_row=page * items + 2
         try:
             address = ''.join((row[2].value).split(',')[:-1])
         except Exception:
@@ -29,18 +30,22 @@ def get_data(items: int = 20, page: int = 1) -> list[DatasetRow]:
         try:
             city = str(row[2].value).split(',')[-1].strip()
         except Exception:
-            city = None   
+            continue
         try:
-            size = float(row[3].value)   
+            size = float(row[3].value)
         except Exception:
-            size = None      
+            continue
         try:
             population = int(row[7].value) * 3
         except Exception:
-            population = None
+            population = int(size // 500)
         data.append(DatasetRow(address=address, city=city, size=size, population=population))
+        
     return data
 
 
 if __name__ == "__main__":
-    print(get_data())
+    try:
+        print(len(get_data()))
+    except KeyboardInterrupt as _:
+        print('stopped')
