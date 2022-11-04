@@ -3,12 +3,13 @@ from openpyxl.cell import Cell
 from openpyxl import load_workbook
 from pydantic import BaseModel
 
-wb: Workbook = load_workbook(filename='utils/dataset.xlsx')
-ws = wb['Реестр домов']
+wb: Workbook = load_workbook(filename="utils/dataset.xlsx")
+ws = wb["Реестр домов"]
 
-headers = ('№ - ТОП', '№', 'Адрес', 'Площадь м2', 'Год', 'Этажей', 'Подьездов', 'Помещений / Квартир')
+headers = ("№ - ТОП", "№", "Адрес", "Площадь м2", "Год", "Этажей", "Подьездов", "Помещений / Квартир")
 
 sh = wb.active
+
 
 class DatasetRow(BaseModel):
     address: str
@@ -21,14 +22,13 @@ def get_data(items: int = 5, page: int = 1) -> list[DatasetRow]:
     data: list[DatasetRow] = []
 
     row: Cell
-    for row in sh.iter_rows():
-        # min_row=(page - 1) * items or 2, max_row=page * items + 2
+    for row in sh.iter_rows(min_row=(page - 1) * items or 2, max_row=page * items + 2):
         try:
-            address = ''.join((row[2].value).split(',')[:-1])
+            address = "".join((row[2].value).split(",")[:-1])
         except Exception:
             continue
         try:
-            city = str(row[2].value).split(',')[-1].strip()
+            city = str(row[2].value).split(",")[-1].strip()
         except Exception:
             continue
         try:
@@ -40,7 +40,7 @@ def get_data(items: int = 5, page: int = 1) -> list[DatasetRow]:
         except Exception:
             population = int(size // 500) * 3
         data.append(DatasetRow(address=address, city=city, size=size, population=population))
-        
+
     return data
 
 
@@ -48,4 +48,4 @@ if __name__ == "__main__":
     try:
         print(len(get_data()))
     except KeyboardInterrupt as _:
-        print('stopped')
+        print("stopped")
