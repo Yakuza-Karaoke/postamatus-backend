@@ -124,4 +124,5 @@ def get_mfc_address():
         json.dump(mfc_res, outfile, ensure_ascii=False)
 
 
-#get_mfc_address()
+if __name__ == "__main__":
+    save_addresses()

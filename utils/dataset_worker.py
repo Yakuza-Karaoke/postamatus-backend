@@ -38,7 +38,7 @@ def get_data(items: int = 5, page: int = 1) -> list[DatasetRow]:
         try:
             population = int(row[7].value) * 3
         except Exception:
-            population = int(size // 500)
+            population = int(size // 500) * 3
         data.append(DatasetRow(address=address, city=city, size=size, population=population))
         
     return data
