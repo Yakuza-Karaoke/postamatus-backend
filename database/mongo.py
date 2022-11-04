@@ -1,4 +1,4 @@
-from datetime import datetime
+from typing import Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
 from database.models import PointInfo, UserDataReg
@@ -27,6 +27,32 @@ class _MongoWrapper:
                 {"$sort": {"calcDistance": 1}},
             ]
         ).to_list(length=None)
+
+    async def calculate_point_score(self, lat: float, long: float, distance: int = 500) -> dict:
+        """
+        По данным координатам посчитать оценку точки в зависимости от ближайших зданий
+        Возвращаем все точки и оценку данной
+
+        Пример ближайшей точки:
+        {
+            "address": "улица Кировоградская 42к1",
+            "population": 57,
+            "location": {
+                "type": "Point",
+                "coordinates": [
+                    37.598054392087334,
+                    55.6014346
+                ]
+            },
+            "type": "house",
+            "calcDistance": 201.18500008983796
+        },
+        """
+        points = await self.find_close_points(lat, long, distance)
+        response: dict[str, Any] = {"near": points}
+        # TODO: посчитать score от 0 до 100
+        response["point"] = {"score": 1, "coords": [lat, long]}
+        return response
 
     async def add_points(self, point: list[PointInfo]) -> None:
         await self.points_collection.insert_many([p.dict() for p in point])
