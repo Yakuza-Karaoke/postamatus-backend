@@ -1,3 +1,4 @@
+from .exceptions import SamePassword, UserNotFound
 from typing import Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
@@ -73,6 +74,16 @@ class _MongoWrapper:
 
     async def find_user(self, username: str, password: str) -> dict | None:
         return await self.users_collection.find({"username": username, "password": password}).to_list(length=None)
+
+    async def edit_password(self, username: str, password: str, new_password: str) -> None:
+        if await self.users_collection.find({"username": username, "password": password}).to_list(length=None):
+            if (password == new_password):
+                raise SamePassword()
+            await self.users_collection.update_one({"username" : username}, {"$set": {"password" : new_password}})
+        else:
+            raise UserNotFound()
+        return None
+
 
     async def get_all_users(self) -> list[dict]:
         return await self.users_collection.find({}, {"password": 0}).to_list(length=None)

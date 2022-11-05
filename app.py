@@ -2,6 +2,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Header
 from database.models import UserDataReg
 from database.mongo import Mongo
+from database.exceptions import SamePassword, UserNotFound
 
 # from utils.dataset_worker import DatasetRow, get_data
 from pydantic import BaseModel
@@ -53,6 +54,21 @@ async def get_my_data(token: str = Header()):
         del user[0]["password"]
         return UserOut(**user[0])
     raise HTTPException(status_code=403, detail="Ошибка при валидации токена")
+
+
+@app.post("/password", response_model=UserOut)
+async def change_user_password(new_password: str, token: str = Header()):
+    """Получение данных о пользователе по токену"""
+    username, password = token.split("_")
+    try:
+        await Mongo.edit_password(username=username, password=password, new_password=new_password)
+    except SamePassword:
+        raise HTTPException(status_code=400, detail='Новый пароль не может совпадать со старым')
+    except UserNotFound:
+        raise HTTPException(status_code=403, detail='Пользователь не авторизован')
+    except Exception:
+        raise HTTPException(status_code=500, detail='Неожиданная ошибка')
+    raise HTTPException(status_code=200, detail='Пароль успешно изменен')
 
 
 class GenericResponse(BaseModel):
