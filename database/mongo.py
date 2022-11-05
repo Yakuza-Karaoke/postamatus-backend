@@ -1,4 +1,4 @@
-from .exceptions import SamePassword, UserNotFound
+from .exceptions import SamePassword, UserNotFound, PostamatExist, PostamatsNotFound, PostamatNotExist, NotUsersPostamat
 from typing import Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
@@ -10,9 +10,10 @@ class _MongoWrapper:
         self.db: AsyncIOMotorDatabase = AsyncIOMotorClient(url)["db"]
 
         self.points_collection: AsyncIOMotorCollection = self.db["points"]
+        self.postamatus_collection: AsyncIOMotorCollection = self.db["postamatus"]
         self.users_collection: AsyncIOMotorCollection = self.db["users"]
 
-    async def find_close_points(self, lat: float, long: float, distance: int = 500) -> list[dict]:
+    async def find_close_points(self, lat: float, long: float, distance: int = 500, type: str = "house" ) -> list[dict]:
         return await self.points_collection.aggregate(
             [
                 {
@@ -20,7 +21,7 @@ class _MongoWrapper:
                         "near": {"type": "Point", "coordinates": [long, lat]},
                         "spherical": False,
                         "distanceField": "calcDistance",
-                        "query": { "type": "house" },
+                        "query": { "type": type },
                         "maxDistance": distance,
                         "minDistance": 0,
                     }
@@ -58,11 +59,38 @@ class _MongoWrapper:
             population = house['population']
             dist = (house['calcDistance'] > coeff if house['calcDistance'] else coeff)
             score += population * coeff / dist
+        max_score = (await self.points_collection.find({"type": "special"}).sort("score", -1).limit(1).to_list(length=None))[0]["score"]
+        is_mfc = (20 if (await self.points_collection.find({"type": "special", "location.coordinates" : [long, lat]}).to_list(length=None)) else 0)
+        is_mfc_near = (-10 * len(await self.find_close_points(lat, long, distance, 'special')) if is_mfc > 0 else 0)
+        score = (100 if (score * 100 / max_score) + is_mfc > 100 else (score * 100 / max_score) + is_mfc)
+        score = (score if score + is_mfc_near < 0 else score + is_mfc_near)
         response["point"] = {"score": score, "coords": [lat, long]}
         return response
 
     async def add_points(self, point: list[PointInfo]) -> None:
         await self.points_collection.insert_many([p.dict() for p in point])
+
+    async def add_postamatus(self, postamat_lat: float, postamat_long: float, username: str, score: float) -> None:
+        if (await self.postamatus_collection.find({"location.coordinates": [postamat_long, postamat_lat]}).to_list(length=None)):
+            raise PostamatExist()
+        await self.postamatus_collection.insert_one({"location" : {"coordinates" : [postamat_long, postamat_lat]}, "username" : username, "score" : score})
+        return None
+
+    async def del_postamatus(self, postamat_lat: float, postamat_long: float, username: str) -> None:
+        if postamat := (await self.postamatus_collection.find({"location.coordinates": [postamat_long, postamat_lat]}).to_list(length=None)):
+            if (postamat[0]["username"] == username):
+                await self.postamatus_collection.delete_one({"location" : {"coordinates" : [postamat_long, postamat_lat]}, "username" : username})
+            else:
+                raise NotUsersPostamat()
+        else:
+            raise PostamatNotExist()
+        return None
+
+    async def get_postamats(self, username: str) -> list[dict] | None:
+        if postamats := (await self.postamatus_collection.find({"username" : username}, {"_id": 0}).to_list(length=None)):
+            return postamats
+        else:
+            raise PostamatsNotFound()
 
     async def register_user(self, user_data: UserDataReg) -> None:
         if await self.find_user(username=user_data.username, password=user_data.password):
