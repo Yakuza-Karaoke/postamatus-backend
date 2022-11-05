@@ -1,3 +1,4 @@
+from .exceptions import SamePassword, UserNotFound
 from typing import Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
@@ -19,6 +20,7 @@ class _MongoWrapper:
                         "near": {"type": "Point", "coordinates": [long, lat]},
                         "spherical": False,
                         "distanceField": "calcDistance",
+                        "query": { "type": "house" },
                         "maxDistance": distance,
                         "minDistance": 0,
                     }
@@ -28,7 +30,7 @@ class _MongoWrapper:
             ]
         ).to_list(length=None)
 
-    async def calculate_point_score(self, lat: float, long: float, distance: int = 500) -> dict:
+    async def calculate_point_score(self, lat: float, long: float, distance: int = 500, coeff: int = 50) -> dict:
         """
         По данным координатам посчитать оценку точки в зависимости от ближайших зданий
         Возвращаем все точки и оценку данной
@@ -51,7 +53,12 @@ class _MongoWrapper:
         points = await self.find_close_points(lat, long, distance)
         response: dict[str, Any] = {"near": points}
         # TODO: посчитать score от 0 до 100
-        response["point"] = {"score": 1, "coords": [lat, long]}
+        score = 0
+        for house in points:
+            population = house['population']
+            dist = (house['calcDistance'] > coeff if house['calcDistance'] else coeff)
+            score += population * coeff / dist
+        response["point"] = {"score": score, "coords": [lat, long]}
         return response
 
     async def add_points(self, point: list[PointInfo]) -> None:
@@ -68,8 +75,18 @@ class _MongoWrapper:
     async def find_user(self, username: str, password: str) -> dict | None:
         return await self.users_collection.find({"username": username, "password": password}).to_list(length=None)
 
+    async def edit_password(self, username: str, password: str, new_password: str) -> None:
+        if await self.users_collection.find({"username": username, "password": password}).to_list(length=None):
+            if (password == new_password):
+                raise SamePassword()
+            await self.users_collection.update_one({"username" : username}, {"$set": {"password" : new_password}})
+        else:
+            raise UserNotFound()
+        return None
+
+
     async def get_all_users(self) -> list[dict]:
         return await self.users_collection.find({}, {"password": 0}).to_list(length=None)
 
 
-Mongo = _MongoWrapper(url="uri")
+Mongo = _MongoWrapper(url="mongodb://root:root@178.170.192.207:27017")
