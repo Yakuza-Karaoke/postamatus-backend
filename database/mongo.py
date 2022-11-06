@@ -61,7 +61,7 @@ class _MongoWrapper:
             score += population * coeff / dist
         max_score = (await self.points_collection.find({"type": "special"}).sort("score", -1).limit(1).to_list(length=None))[0]["score"]
         is_mfc = (20 if (await self.points_collection.find({"type": "special", "location.coordinates" : [long, lat]}).to_list(length=None)) else 0)
-        is_mfc_near = (-10 * len(await self.find_close_points(lat, long, distance, 'special')) if is_mfc > 0 else 0)
+        is_mfc_near = (0 if is_mfc > 0 else -10 * len(await self.find_close_points(lat, long, distance, 'special')))
         score = (100 if (score * 100 / max_score) + is_mfc > 100 else (score * 100 / max_score) + is_mfc)
         score = (score if score + is_mfc_near < 0 else score + is_mfc_near)
         response["point"] = {"score": score, "coords": [lat, long]}
