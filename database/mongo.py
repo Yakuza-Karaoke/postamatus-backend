@@ -1,7 +1,7 @@
 from .exceptions import SamePassword, UserNotFound, PostamatExist, PostamatsNotFound, PostamatNotExist, NotUsersPostamat
 from typing import Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
-
+import uuid
 from database.models import PointInfo, UserDataReg
 
 
@@ -14,22 +14,39 @@ class _MongoWrapper:
         self.users_collection: AsyncIOMotorCollection = self.db["users"]
 
     async def find_close_points(self, lat: float, long: float, distance: int = 500, type: str = "house" ) -> list[dict]:
-        return await self.points_collection.aggregate(
-            [
-                {
-                    "$geoNear": {
-                        "near": {"type": "Point", "coordinates": [long, lat]},
-                        "spherical": False,
-                        "distanceField": "calcDistance",
-                        "query": { "type": type },
-                        "maxDistance": distance,
-                        "minDistance": 0,
-                    }
-                },
-                {"$unset": ["_id"]},
-                {"$sort": {"calcDistance": 1}},
-            ]
-        ).to_list(length=None)
+        if (type == "postamat"):
+            return await self.postamatus_collection.aggregate(
+                [
+                    {
+                        "$geoNear": {
+                            "near": {"type": "Point", "coordinates": [long, lat]},
+                            "spherical": False,
+                            "distanceField": "calcDistance",
+                            "maxDistance": distance,
+                            "minDistance": 0,
+                        }
+                    },
+                    {"$unset": ["_id"]},
+                    {"$sort": {"calcDistance": 1}},
+                ]
+            ).to_list(length=None)
+        else:
+            return await self.points_collection.aggregate(
+                [
+                    {
+                        "$geoNear": {
+                            "near": {"type": "Point", "coordinates": [long, lat]},
+                            "spherical": False,
+                            "distanceField": "calcDistance",
+                            "query": { "type": type },
+                            "maxDistance": distance,
+                            "minDistance": 0,
+                        }
+                    },
+                    {"$unset": ["_id"]},
+                    {"$sort": {"calcDistance": 1}},
+                ]
+            ).to_list(length=None)
 
     async def calculate_point_score(self, lat: float, long: float, distance: int = 500, coeff: int = 50) -> dict:
         """
@@ -52,7 +69,7 @@ class _MongoWrapper:
         },
         """
         points = await self.find_close_points(lat, long, distance)
-        response: dict[str, Any] = {"near": points}
+        response: dict[str, Any] = {"near_houses": points}
         score = 0
         for house in points:
             population = house['population']
@@ -63,6 +80,8 @@ class _MongoWrapper:
         is_mfc_near = (0 if is_mfc > 0 else -10 * len(await self.find_close_points(lat, long, distance, 'special')))
         score = (100 if (score * 100 / max_score) + is_mfc > 100 else (score * 100 / max_score) + is_mfc)
         score = (score if score + is_mfc_near < 0 else score + is_mfc_near)
+        postamats = await self.find_close_points(lat, long, distance, "postamat")
+        response["near_postamats"] = postamats
         response["point"] = {"score": score, "coords": [lat, long]}
         return response
 
@@ -72,13 +91,14 @@ class _MongoWrapper:
     async def add_postamatus(self, postamat_lat: float, postamat_long: float, username: str, score: float) -> None:
         if (await self.postamatus_collection.find({"location.coordinates": [postamat_long, postamat_lat]}).to_list(length=None)):
             raise PostamatExist()
-        await self.postamatus_collection.insert_one({"location" : {"coordinates" : [postamat_long, postamat_lat]}, "username" : username, "score" : score})
+        num = str(uuid.uuid1()).split("-")[0]
+        await self.postamatus_collection.insert_one({"title": num, "location" : {"type" : "Point", "coordinates" : [postamat_long, postamat_lat]}, "username" : username, "score" : score})
         return None
 
     async def del_postamatus(self, postamat_lat: float, postamat_long: float, username: str) -> None:
         if postamat := (await self.postamatus_collection.find({"location.coordinates": [postamat_long, postamat_lat]}).to_list(length=None)):
             if (postamat[0]["username"] == username):
-                await self.postamatus_collection.delete_one({"location" : {"coordinates" : [postamat_long, postamat_lat]}, "username" : username})
+                await self.postamatus_collection.delete_one({"location.coordinates" : [postamat_long, postamat_lat], "username" : username})
             else:
                 raise NotUsersPostamat()
         else:
