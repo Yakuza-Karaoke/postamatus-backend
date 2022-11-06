@@ -53,7 +53,6 @@ class _MongoWrapper:
         """
         points = await self.find_close_points(lat, long, distance)
         response: dict[str, Any] = {"near": points}
-        # TODO: посчитать score от 0 до 100
         score = 0
         for house in points:
             population = house['population']
