@@ -76,7 +76,7 @@ class _MongoWrapper:
             dist = (house['calcDistance'] if house['calcDistance'] > coeff else coeff)
             score += population * coeff / dist
         max_score = (await self.points_collection.find({"type": "special"}).sort("score", -1).limit(1).to_list(length=None))[0]["score"]
-        is_mfc = (20 if (await self.points_collection.find({"type": "special", "location.coordinates" : [long, lat]}).to_list(length=None)) else 0)
+        is_mfc = (50 if (await self.points_collection.find({"type": "special", "location.coordinates" : [long, lat]}).to_list(length=None)) else 0)
         is_mfc_near = (0 if is_mfc > 0 else -10 * len(await self.find_close_points(lat, long, distance, 'special')))
         score = (100 if (score * 100 / max_score) + is_mfc > 100 else (score * 100 / max_score) + is_mfc)
         score = (score if score + is_mfc_near < 0 else score + is_mfc_near)
@@ -89,6 +89,8 @@ class _MongoWrapper:
         await self.points_collection.insert_many([p.dict() for p in point])
 
     async def add_postamatus(self, postamat_lat: float, postamat_long: float, username: str, score: float) -> None:
+        if (not await self.find_user_by_username(username)):
+            raise UserNotFound()
         if (await self.postamatus_collection.find({"location.coordinates": [postamat_long, postamat_lat]}).to_list(length=None)):
             raise PostamatExist()
         num = str(uuid.uuid1()).split("-")[0]
@@ -96,6 +98,8 @@ class _MongoWrapper:
         return None
 
     async def del_postamatus(self, postamat_lat: float, postamat_long: float, username: str) -> None:
+        if (not await self.find_user_by_username(username)):
+            raise UserNotFound()
         if postamat := (await self.postamatus_collection.find({"location.coordinates": [postamat_long, postamat_lat]}).to_list(length=None)):
             if (postamat[0]["username"] == username):
                 await self.postamatus_collection.delete_one({"location.coordinates" : [postamat_long, postamat_lat], "username" : username})
@@ -106,6 +110,8 @@ class _MongoWrapper:
         return None
 
     async def get_postamats(self, username: str) -> list[dict] | None:
+        if (not await self.find_user_by_username(username)):
+            raise UserNotFound()
         if postamats := (await self.postamatus_collection.find({"username" : username}, {"_id": 0}).to_list(length=None)):
             return postamats
         else:

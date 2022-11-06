@@ -95,7 +95,7 @@ async def get_points_near_given(lat: float, long: float, type: str = 'house') ->
 
 
 @app.get("/points/score")
-async def get_points_near_given(lat: float, long: float) -> list[dict]:
+async def get_points_score(lat: float, long: float) -> list[dict]:
     return await Mongo.calculate_point_score(lat=lat, long=long)
 
 @app.post("/points/postamat", response_model=UserOut)
@@ -105,6 +105,8 @@ async def add_new_postamat(lat: float, long: float, score: float, token: str = H
         await Mongo.add_postamatus(postamat_lat=lat, postamat_long=long, username=username, score=score)
     except PostamatExist:
         raise HTTPException(status_code=403, detail="Постамат уже существует!")
+    except UserNotFound:
+        raise HTTPException(status_code=403, detail="Пользователь не авторизован")
     raise HTTPException(status_code=200, detail='Постамат успешно поставлен')
     
 @app.delete("/points/postamat", response_model=UserOut)
@@ -116,6 +118,8 @@ async def delete_postamat(lat: float, long: float, token: str = Header()):
         raise HTTPException(status_code=403, detail="Постамат не существует!")
     except NotUsersPostamat:
         raise HTTPException(status_code=400, detail="Пользователь не может удалить данный постамат")
+    except UserNotFound:
+        raise HTTPException(status_code=403, detail="Пользователь не авторизован")
     raise HTTPException(status_code=200, detail='Постамат успешно удален')
 
 @app.get("/points/my")
@@ -125,3 +129,5 @@ async def get_my_postamats(token: str = Header()) -> list[dict] | None:
         return await Mongo.get_postamats(username=username)
     except PostamatsNotFound:
         raise HTTPException(status_code=403, detail="Постаматы не найдены")
+    except UserNotFound:
+        raise HTTPException(status_code=403, detail="Пользователь не авторизован")
