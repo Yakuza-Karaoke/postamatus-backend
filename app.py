@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Header
 from database.models import UserDataReg
 from database.mongo import Mongo
-from database.exceptions import SamePassword, UserNotFound
+from database.exceptions import SamePassword, UserNotFound, PostamatExist, PostamatsNotFound, PostamatNotExist, NotUsersPostamat
 
 # from utils.dataset_worker import DatasetRow, get_data
 from pydantic import BaseModel
@@ -97,3 +97,31 @@ async def get_points_near_given(lat: float, long: float) -> list[dict]:
 @app.get("/points/score")
 async def get_points_near_given(lat: float, long: float) -> list[dict]:
     return await Mongo.calculate_point_score(lat=lat, long=long)
+
+@app.post("/points/postamat", response_model=UserOut)
+async def add_new_postamat(lat: float, long: float, score: float, token: str = Header()):
+    username = token.split("_")[0]
+    try:
+        await Mongo.add_postamatus(postamat_lat=lat, postamat_long=long, username=username, score=score)
+    except PostamatExist:
+        raise HTTPException(status_code=403, detail="Постамат уже существует!")
+    raise HTTPException(status_code=200, detail='Постамат успешно поставлен')
+    
+@app.delete("/points/postamat", response_model=UserOut)
+async def delete_postamat(lat: float, long: float, token: str = Header()):
+    username = token.split("_")[0]
+    try:
+        await Mongo.del_postamatus(postamat_lat=lat, postamat_long=long, username=username)
+    except PostamatNotExist:
+        raise HTTPException(status_code=403, detail="Постамат не существует!")
+    except NotUsersPostamat:
+        raise HTTPException(status_code=400, detail="Пользователь не может удалить данный постамат")
+    raise HTTPException(status_code=200, detail='Постамат успешно удален')
+
+@app.get("/points/my")
+async def get_my_postamats(token: str = Header()) -> list[dict] | None:
+    username = token.split("_")[0]
+    try:
+        return await Mongo.get_postamats(username=username)
+    except PostamatsNotFound:
+        raise HTTPException(status_code=403, detail="Постаматы не найдены")
