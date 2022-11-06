@@ -90,8 +90,8 @@ async def get_all_users() -> list[UserOut]:
 
 
 @app.get("/points/near")
-async def get_points_near_given(lat: float, long: float) -> list[dict]:
-    return await Mongo.find_close_points(lat=lat, long=long)
+async def get_points_near_given(lat: float, long: float, type: str = 'house') -> list[dict]:
+    return await Mongo.find_close_points(lat=lat, long=long, type=type)
 
 
 @app.get("/points/score")
