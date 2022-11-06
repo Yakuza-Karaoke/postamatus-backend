@@ -57,7 +57,7 @@ class _MongoWrapper:
         score = 0
         for house in points:
             population = house['population']
-            dist = (house['calcDistance'] > coeff if house['calcDistance'] else coeff)
+            dist = (house['calcDistance'] if house['calcDistance'] > coeff else coeff)
             score += population * coeff / dist
         max_score = (await self.points_collection.find({"type": "special"}).sort("score", -1).limit(1).to_list(length=None))[0]["score"]
         is_mfc = (20 if (await self.points_collection.find({"type": "special", "location.coordinates" : [long, lat]}).to_list(length=None)) else 0)
